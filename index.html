@@ -115,6 +115,23 @@
     .logo { font-size:clamp(38px, 11vw, 56px); }
     .tag { font-size:14px; margin:6px 0 10px; }
   }
+  /* ---------- 에너지 게이지 & 방귀 대청소 버튼 ---------- */
+  .eb { width:56px; height:6px; background:#e4dcc4; border-radius:3px; overflow:hidden; margin-top:2px; }
+  .eb i { display:block; height:100%; width:0%; border-radius:3px; background:linear-gradient(90deg,#7fe0ff,#ffd23e); }
+  .pStat.ready .eb { box-shadow:0 0 0 2px #ffd23e, 0 0 10px #ffd23e; animation:ebGlow .5s ease-in-out infinite alternate; }
+  @keyframes ebGlow { from{ filter:brightness(1);} to{ filter:brightness(1.4);} }
+  .skillBtn { position:absolute; bottom:96px; z-index:6; width:66px; height:66px; border-radius:50%; border:none; padding:5px;
+    cursor:pointer; touch-action:manipulation; font-family:inherit;
+    background:conic-gradient(#ffd23e var(--pct,0%), rgba(255,255,255,.55) 0); box-shadow:0 4px 0 rgba(0,0,0,.18); }
+  .skillBtn.left { left:12px; } .skillBtn.right { right:12px; }
+  .skillBtn .in { width:100%; height:100%; border-radius:50%; background:#fffef5; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; font-size:22px; line-height:1; }
+  .skillBtn .ic img { width:38px; height:38px; object-fit:contain; display:block; }
+  .skillBtn small { font-size:11px; color:#5a3e2b; margin-top:1px; }
+  .skillBtn:not(.ready) .in { filter:grayscale(.75); opacity:.72; }
+  .skillBtn.ready { animation:skPulse .65s ease-in-out infinite alternate; }
+  @keyframes skPulse { from{ transform:scale(1); box-shadow:0 4px 0 rgba(0,0,0,.18), 0 0 0 0 rgba(255,210,62,.8);}
+                       to{ transform:scale(1.09); box-shadow:0 4px 0 rgba(0,0,0,.18), 0 0 0 12px rgba(255,210,62,0);} }
   @media (prefers-reduced-motion: reduce) { .logo .pp, .heroImgs img { animation:none; } }
 </style>
 </head>
@@ -127,6 +144,7 @@
       <span class="who" id="p1Who">1P</span>
       <span class="sc" id="p1Score">0</span>
       <span class="hp" id="p1Hearts">❤️❤️❤️</span>
+      <div class="eb" title="방귀 대청소 에너지"><i id="p1En"></i></div>
     </div>
     <div class="pill roundPill"><span id="roundTxt">라운드 1</span><div class="rb"><i id="roundBar"></i></div></div>
     <div class="right">
@@ -134,10 +152,14 @@
         <span class="who">2P</span>
         <span class="sc" id="p2Score">0</span>
         <span class="hp" id="p2Hearts">❤️❤️❤️</span>
+        <div class="eb" title="방귀 대청소 에너지"><i id="p2En"></i></div>
       </div>
       <button id="muteBtn" title="소리 켜기/끄기">🔊</button>
     </div>
   </div>
+
+  <button class="skillBtn right hidden" id="skill1" aria-label="1P 방귀 대청소"><span class="in"><span class="ic" id="skill1Ic">🧹</span><small id="skill1Key">W</small></span></button>
+  <button class="skillBtn right hidden" id="skill2" aria-label="2P 방귀 대청소"><span class="in"><span class="ic" id="skill2Ic">🧹</span><small>↑</small></span></button>
 
   <div class="overlay titleScr" id="startScr">
     <div class="titleBox">
@@ -226,6 +248,10 @@ const p1Score = document.getElementById('p1Score');
 const p2Score = document.getElementById('p2Score');
 const p1Hearts = document.getElementById('p1Hearts');
 const p2Hearts = document.getElementById('p2Hearts');
+const p1En = document.getElementById('p1En');
+const p2En = document.getElementById('p2En');
+const skill1 = document.getElementById('skill1');
+const skill2 = document.getElementById('skill2');
 const roundTxt = document.getElementById('roundTxt');
 const roundBar = document.getElementById('roundBar');
 const nameInput = document.getElementById('nameInput');
@@ -614,6 +640,35 @@ function playRainSfx(){ // ☔ 소나기 예고
   const t = actx.currentTime;
   [400, 340, 290, 250].forEach((f, i) => note(f, t + i * 0.09, 0.1, 'sine', 0.12));
 }
+function playReady(){ // 🧹 에너지 가득!
+  if(!actx || muted) return;
+  const t = actx.currentTime;
+  note(1047, t, 0.1, 'triangle', 0.16);
+  note(1568, t + 0.1, 0.18, 'triangle', 0.16);
+}
+function playCleanup(){ // 🧹 슈우우욱~ 반짝!
+  if(!actx || muted) return;
+  const t = actx.currentTime;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.8);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(3200, t);
+  bp.frequency.exponentialRampToValueAtTime(250, t + 0.7);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(1.2, t + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+  src.connect(bp); bp.connect(g); g.connect(actx.destination);
+  src.start(t);
+  const o = actx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(900, t);
+  o.frequency.exponentialRampToValueAtTime(140, t + 0.6);
+  const og = actx.createGain();
+  og.gain.setValueAtTime(0.18, t);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.62);
+  o.connect(og); og.connect(actx.destination);
+  o.start(t); o.stop(t + 0.65);
+  [784, 988, 1175, 1568, 2093].forEach((f, i) => note(f, t + 0.55 + i * 0.06, 0.16, 'sine', 0.12));
+}
 function playSparkle(){
   if(!actx || muted) return;
   const t = actx.currentTime;
@@ -829,7 +884,7 @@ function makePlayer(id, name){
     x: mode === 2 ? (id === 0 ? W * 0.33 : W * 0.67) : W / 2,
     y: H - 64, r: 19, face: 0, tilt: 0,
     hearts: 4, maxHearts: 4, invuln: 0, slowT: 0, shield: false, feverT: 0,
-    score: 0, streak: 0, out: false, downT: 0
+    score: 0, streak: 0, out: false, downT: 0, energy: 0
   };
 }
 function alivePlayers(){ return players.filter(p => !p.out); }
@@ -842,16 +897,31 @@ function targetOf(c){
   return (p && !p.out) ? p : pickTarget();
 }
 function aimAt(x, y, tp){ return Math.atan2((H - 64) - y, tp.x - x); }
+// 🧹 에너지: 시간이 지나도, 방귀를 피해도 차요. 100이 되면 방귀 대청소!
+const EN = { max: 100, perSec: 1.3, dodge: 3, small: 1.5, wall: 0.4 };
+const GOOD_KINDS = ['rainbow', 'gold', 'shield', 'clock', 'clover', 'fake'];
+let waves = [], sparks = [], flashT = 0, toolFx = [];
+function skillKeyLabel(p){ return mode === 2 ? (p.id === 0 ? 'W' : '↑') : 'W'; }
+function gainEnergy(p, v){
+  if(p.out || state !== 'playing') return;
+  const was = p.energy >= EN.max;
+  p.energy = Math.min(EN.max, p.energy + v);
+  if(!was && p.energy >= EN.max){
+    playReady();
+    particles.push({ x: p.x, y: p.y - 86, text: '🧹 대청소 준비! ' + skillKeyLabel(p) + ' 키', life: 1.8, max: 1.8, color: '#2f8fd0' });
+  }
+}
 function addScore(p, v){ p.score += (p.feverT > 0 ? v * 2 : v); } // 🍀 피버면 2배!
 
 function resetAll(){
   players = [];
-  players.push(makePlayer(0, (nameInput.value.trim() || '1P 방귀헌터').slice(0, 8)));
-  if(mode === 2) players.push(makePlayer(1, (name2Input.value.trim() || '2P 방귀헌터').slice(0, 8)));
+  players.push(makePlayer(0, (nameInput.value.trim() || '뭉치').slice(0, 8)));
+  if(mode === 2) players.push(makePlayer(1, (name2Input.value.trim() || '구름이').slice(0, 8)));
   monsters = []; boss = null;
   clouds = []; particles = []; puffs = []; confetti = [];
   dodged = 0; shake = 0; dodgeMile = 50;
   wallT = 9999; wallPending = false; slowMoT = 0; lightWarns = [];
+  waves = []; sparks = []; toolFx = []; flashT = 0;
   round = 1; roundTime = ROUNDS[1].time; roundLeft = roundTime;
   syncMonsters(ROUNDS[1].monsters);
   p1Who.textContent = mode === 2 ? '1P' : '점수';
@@ -970,6 +1040,17 @@ function updateHUD(){
     p2Hearts.textContent = b.out ? '💀' : heartStr(b);
     p2El.classList.toggle('dead', !!b.out);
   }
+  const setEn = (p, bar, pill, btn) => {
+    if(!p) return;
+    const pct = Math.round(p.energy);
+    const rd = p.energy >= EN.max && !p.out;
+    bar.style.width = pct + '%';
+    pill.classList.toggle('ready', rd);
+    btn.style.setProperty('--pct', pct + '%');
+    btn.classList.toggle('ready', rd);
+  };
+  setEn(a, p1En, p1El, skill1);
+  setEn(b, p2En, p2El, skill2);
   roundTxt.textContent = '라운드 ' + round;
   roundBar.style.width = (Math.max(0, roundLeft) / roundTime * 100) + '%';
 }
@@ -985,12 +1066,20 @@ function setKey(code, key, down){
   if(code === 'ArrowRight' || k === 'arrowright'){ if(mode === 2) keys.p2R = down; else keys.p1R = down; return true; }
   return false;
 }
+function skillFromKey(code, key){
+  const k = (key || '').toLowerCase();
+  if(code === 'KeyW' || k === 'w') return 0;
+  if(code === 'ArrowUp' || k === 'arrowup') return mode === 2 ? 1 : 0;
+  return -1;
+}
 window.addEventListener('keydown', e => {
   const ae = document.activeElement;
   if(ae && ae.tagName === 'INPUT'){
     if(e.key === 'Enter' && !startScr.classList.contains('hidden')) startGame();
     return;
   }
+  const sk = skillFromKey(e.code, e.key);
+  if(sk >= 0){ e.preventDefault(); if(!e.repeat) useSkill(sk); return; }
   if(setKey(e.code, e.key, true)){ e.preventDefault(); return; }
   if(e.key === 'Enter' && boardScr.classList.contains('hidden')){
     if((state === 'start' && !startScr.classList.contains('hidden')) ||
@@ -1064,6 +1153,7 @@ function update(rdt){
     if(p.invuln > 0) p.invuln -= rdt;
     if(p.slowT > 0) p.slowT -= rdt;
     if(p.feverT > 0) p.feverT -= rdt;
+    gainEnergy(p, rdt * EN.perSec);
   }
 
   // 라운드 타이머
@@ -1337,6 +1427,13 @@ function update(rdt){
   for(let i = clouds.length - 1; i >= 0; i--){
     const c = clouds[i];
     c.age += dt; c.wob += dt * 5;
+    if(c.magnet !== undefined){ // 🧹 대청소: 좋은 아이템이 플레이어에게 날아와요
+      const tp = players[c.magnet];
+      if(tp && !tp.out){
+        const dx = tp.x - c.x, dy = (tp.y - 6) - c.y, d = Math.hypot(dx, dy) || 1;
+        c.vx = dx / d * 560; c.vy = dy / d * 560; c.grav = 0;
+      } else c.magnet = undefined;
+    }
     if(c.zig) c.x += Math.sin(c.age * 5.5 + c.ph) * c.zig * dt;
     if(c.home){
       const tp = targetOf(c);
@@ -1388,11 +1485,12 @@ function update(rdt){
     if(c.y > H + 40 || c.x < -70 || c.x > W + 70 || c.y < -90){
       clouds.splice(i, 1);
       if(c.kind === 'wallseg'){
-        for(const p of alivePlayers()) addScore(p, 3);
+        for(const p of alivePlayers()){ addScore(p, 3); gainEnergy(p, EN.wall); }
       } else if(!['rainbow', 'gold', 'shield', 'clock', 'clover', 'fake'].includes(c.kind)){
         dodged++;
         for(const p of alivePlayers()){
           addScore(p, 10); p.streak++;
+          gainEnergy(p, c.kind === 'small' ? EN.small : EN.dodge);
           if(p.streak % 15 === 0){
             addScore(p, 40);
             playCombo();
@@ -1802,6 +1900,41 @@ function spawnPuffs(x, y, n, col){
   }
 }
 
+function useSkill(pid){
+  if(state !== 'playing') return;
+  const p = players[pid];
+  if(!p || p.out || p.energy < EN.max) return;
+  p.energy = 0;
+  let n = 0;
+  for(let i = clouds.length - 1; i >= 0; i--){
+    const c = clouds[i];
+    if(GOOD_KINDS.includes(c.kind)){ c.magnet = p.id; continue; }
+    clouds.splice(i, 1); n++;
+    if(n <= 30) spawnPuffs(c.x, c.y, 2, '#e8fbff');
+    if(sparks.length < 80) sparks.push({ x: c.x, y: c.y, pid: p.id, life: 0.55 + Math.random() * 0.3 });
+  }
+  wallPending = false; lightWarns.length = 0;           // 안개벽·번개 예고도 싹
+  for(const m of monsters){                              // 몬스터들은 깜짝 놀라 잠깐 멈칫
+    if(m.isBoss){
+      if(m.st === 'charge' || m.st === 'rapid' || m.st === 'meteor'){ m.st = 'post'; m.ctimer = 1.6; }
+      else if(m.st === 'idle') m.timer = Math.max(m.timer, 1.6);
+      else m.ctimer = Math.max(m.ctimer, 1.6);
+    } else if(m.st === 'charge' || m.st === 'rapid' || m.st === 'snakefire'){
+      m.st = 'fart'; m.timer = 0.7;
+    }
+  }
+  nextFart = Math.max(nextFart, 1.1);
+  for(const q of players) if(!q.out) q.invuln = Math.max(q.invuln, 1.0);
+  const bonus = n * 5;
+  addScore(p, bonus);
+  waves.push({ x: p.x, y: p.y - 10, r: 12, life: 0.9, max: 0.9 });
+  toolFx.push({ pid: p.id, life: 1.2, max: 1.2 });
+  flashT = 0.25; shake = 6;
+  playCleanup();
+  particles.push({ x: W / 2, y: H * 0.4, text: '🧹 방귀 대청소!!', life: 1.6, max: 1.6, big: true, color: '#2f8fd0' });
+  if(n) particles.push({ x: p.x, y: p.y - 92, text: n + '개 청소! +' + (p.feverT > 0 ? bonus * 2 : bonus), life: 1.4, max: 1.4, color: '#e6a817' });
+  updateHUD();
+}
 function hitPlayer(p){
   if(p.shield){
     p.shield = false; p.invuln = 1.0; shake = 5;
@@ -1865,6 +1998,7 @@ function winnerLine(){
 
 function gameOver(){
   state = 'over';
+  showSkillBtns(false);
   setHeroImgs(document.getElementById('overImgs'), 'dizzy', '🤢💫');
   playGameOver();
   finishRecord(false);
@@ -1891,6 +2025,7 @@ function gameOver(){
 function victory(){
   for(const p of players) if(!p.out) addScore(p, 2000);
   state = 'win';
+  showSkillBtns(false);
   setHeroImgs(document.getElementById('winImgs'), 'happy', '🏆👑');
   playFanfare();
   spawnConfetti();
@@ -1993,7 +2128,7 @@ const ART_FILES = [
   'b1_idle','b2_idle','b3_idle','b1_charge','b2_charge','b3_charge',
   'c_normal','c_zig','c_homing','c_split','c_rocket','c_freeze','c_ghost','c_bomb',
   'c_spiral','c_boomerang','c_bolt','c_fake','c_snake','c_bounce','c_rainbow','c_gold',
-  'i_shield','i_clock','i_clover','i_heart','i_crown','i_star'
+  'i_shield','i_clock','i_clover','i_heart','i_crown','i_star','s_vacuum','s_broom'
 ];
 (function loadArt(){
   for(const n of ART_FILES){
@@ -2211,6 +2346,20 @@ function drawPlayer(p, t){
     ctx.font = '16px "Jua",sans-serif'; ctx.textAlign = 'center';
     ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.strokeText('×2', 30, -26);
     ctx.fillStyle = '#e8a020'; ctx.fillText('×2', 30, -26);
+  }
+  if(p.energy >= EN.max && state === 'playing'){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,210,62,0.95)'; ctx.lineWidth = 3;
+    ctx.setLineDash([7, 7]); ctx.lineDashOffset = -t * 40;
+    ctx.beginPath(); ctx.ellipse(0, 25, 32, 9, 0, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    const lab = '🧹' + skillKeyLabel(p);
+    ctx.font = '13px "Jua",sans-serif'; ctx.textAlign = 'center';
+    const bw = ctx.measureText(lab).width + 12, bx = 40, by = -18 + Math.sin(t * 6) * 2;
+    ctx.fillStyle = '#ffd23e';
+    rrPath(bx - bw / 2, by - 13, bw, 18, 9); ctx.fill();
+    ctx.fillStyle = '#5a3e2b'; ctx.fillText(lab, bx, by + 1);
+    ctx.restore();
   }
   if(state === 'win' && ART.i_crown){
     blit(ART.i_crown, 0, -30 + hop, 26, 0.5, 1);
@@ -2836,6 +2985,7 @@ function draw(t){
   for(const p of puffs) drawPuff(p);
   for(const c of clouds) drawCloud(c);
   for(const p of players) drawPlayer(p, t);
+  drawSkillFx(t);
   for(const p of particles) drawTextParticle(p);
   for(const p of confetti){
     ctx.save();
@@ -2884,7 +3034,60 @@ function idleWalk(dt){
   for(const p of players){ p.y = H - 64; if(p.out) p.downT += dt; }
 }
 
+function updateSkillFx(dt){
+  if(flashT > 0) flashT -= dt;
+  for(let i = waves.length - 1; i >= 0; i--){
+    const w = waves[i]; w.r += 950 * dt; w.life -= dt;
+    if(w.life <= 0) waves.splice(i, 1);
+  }
+  for(let i = toolFx.length - 1; i >= 0; i--){
+    toolFx[i].life -= dt;
+    if(toolFx[i].life <= 0) toolFx.splice(i, 1);
+  }
+  for(let i = sparks.length - 1; i >= 0; i--){ // 청소기 쪽으로 빨려 들어가는 반짝이
+    const sp = sparks[i], tp = players[sp.pid];
+    if(tp){ const k = Math.min(1, dt * 7); sp.x += (tp.x - sp.x) * k; sp.y += (tp.y - 70 - sp.y) * k; }
+    sp.life -= dt;
+    if(sp.life <= 0) sparks.splice(i, 1);
+  }
+}
+function drawSkillFx(t){
+  for(const sp of sparks){
+    ctx.save(); ctx.globalAlpha = Math.min(1, sp.life * 2);
+    drawStar(sp.x, sp.y, 5, '#ffffff');
+    drawStar(sp.x, sp.y, 3, '#7fe0ff');
+    ctx.restore();
+  }
+  for(const w of waves){
+    const k = w.life / w.max;
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 14 * k + 2;
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, 7); ctx.stroke();
+    ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 6 * k + 1;
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 0.82, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+  for(const f of toolFx){ // 머리 위에 커다란 청소 도구 등장!
+    const p = players[f.pid]; if(!p) continue;
+    const k = f.life / f.max;
+    const im = ART[p.id === 0 ? 's_vacuum' : 's_broom'] || ART.s_vacuum;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, k * 3);
+    ctx.translate(p.x, p.y - 74);
+    ctx.rotate(Math.sin(t * 30) * 0.12);
+    const sc = 0.6 + 0.6 * Math.min(1, (1 - k) * 5);
+    if(im) blit(im, 0, 0, 64 * sc, 0.5, 0.5);
+    else { ctx.font = (40 * sc) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('🧹', 0, 14); }
+    ctx.restore();
+  }
+  if(flashT > 0){
+    ctx.fillStyle = 'rgba(255,255,255,' + (flashT * 1.6) + ')';
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+  }
+}
 function updateFx(dt){
+  updateSkillFx(dt);
   if(shake > 0) shake = Math.max(0, shake - dt * 30);
   for(let i = particles.length - 1; i >= 0; i--){
     const p = particles[i];
@@ -2939,10 +3142,11 @@ function setMode(m){
   howto.innerHTML = m === 2
     ? '둘이 함께 라운드 30까지! <b>점수가 높은 쪽이 승리</b>🏆<br>' +
       '친구가 쓰러져도 🌈를 먹으면 <b>부활</b>!<br>' +
-      '⏰시계=슬로우 · 🍀클로버=점수×2 · 🤡가짜방귀는 만지면 +5<br>' +
+      '🧹 피할수록 에너지 충전 → <b>1P W</b> · <b>2P ↑</b> <b>방귀 대청소!</b><br>' +
       '🕹️ <b>1P: A D</b> 키 · <b>2P: ← →</b> 방향키 · 📱 각자 드래그'
     : '라운드 30 대장정! <b>보스가 3명!</b> 🔥<br>' +
       '🌈회복 · ✨+100 · 🛡️방패 · ⏰슬로우 · 🍀점수×2<br>' +
+      '🧹 피할수록 에너지 충전 → <b>W</b> 또는 <b>↑</b>로 <b>방귀 대청소!</b><br>' +
       '🕹️ <b>← →</b> 또는 <b>A D</b> 키, 손가락 드래그';
   players.forEach(p => { p.y = H - 64; });
   p1Who.textContent = m === 2 ? '1P' : '점수';
@@ -2964,6 +3168,20 @@ function startGame(){
   boardScr.classList.add('hidden');
   startRound(1);
   playFartP('normal');
+  showSkillBtns(true);
+}
+function showSkillBtns(on){
+  skill1.classList.toggle('hidden', !on);
+  skill2.classList.toggle('hidden', !on || mode !== 2);
+  skill1.classList.toggle('left', mode === 2);
+  skill1.classList.toggle('right', mode !== 2);
+  document.getElementById('skill1Key').textContent = mode === 2 ? 'W' : 'W/↑';
+  const ic1 = document.getElementById('skill1Ic'), ic2 = document.getElementById('skill2Ic');
+  if(ART.s_vacuum) ic1.innerHTML = '<img src="assets/sprites/s_vacuum.webp" alt="">';
+  if(ART.s_broom) ic2.innerHTML = '<img src="assets/sprites/s_broom.webp" alt="">';
+}
+for(const [btn, pid] of [[skill1, 0], [skill2, 1]]){
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); ensureAudio(); useSkill(pid); });
 }
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('retryBtn').addEventListener('click', startGame);
